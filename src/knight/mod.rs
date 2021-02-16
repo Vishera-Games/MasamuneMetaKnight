@@ -8,6 +8,8 @@ use acmd::{acmd, acmd_func};
 static mut _GFX_COUNTER: [i32; 8] = [0; 8];
 static mut _SOUND_COUNTER: [i32; 8] = [0; 8];
 
+//THE ONCE PER FIGHTER FRAME IS LOCATED AT THE BOTTOM. EFFECT EDITS ARE HALFWAY THROUGH
+
 #[acmd_func(
     battle_object_category = BATTLE_OBJECT_CATEGORY_FIGHTER, 
     battle_object_kind = FIGHTER_KIND_METAKNIGHT, 
@@ -1177,6 +1179,7 @@ pub fn meta_knight_effect_attack_100(fighter: &mut L2CFighterCommon) {
         if(is_excute){
             EFFECT_FOLLOW(0x11aa9b40ef as u64, hash40("top"), -9.99999975e-06, 0, 0, 0, 0, 0, 1.6, true)
             //EFFECT_FOLLOW(0x10790b338f as u64, hash40("haver"), 0, 0, 0, 0, 0, 0, 1.5, true)
+	    //THE EFFECT ID 0x10790b338f CREATES A GLOW IN THE SHAPE OF HIS OLD SWORD. LOOKS BAD ON TOP OF THE MASAMUNE 
             EffectModule::set_disable_render_offset_last()
         }
         wait(4)
@@ -1894,34 +1897,38 @@ pub fn once_per_knight_frame(fighter: &mut L2CFighterCommon) {
           
         if kind == *FIGHTER_KIND_METAKNIGHT {
 
-            if DamageModule::damage(module_accessor, 0) >= 60.0 {
-                _GFX_COUNTER[entry_id] += 1;
+            if DamageModule::damage(module_accessor, 0) >= 60.0 { //If damage is above 60 (powerd up mode threshold)
+                _GFX_COUNTER[entry_id] += 1; //Frame counter for GFX activation
                 _SOUND_COUNTER[entry_id] += 1;
-                AttackModule::set_power_up(module_accessor, 1.3);
+		//Frame counter for GFX. Needed to create a condidtion that the sound would only play once. Instead of using death to reset
+		//I make it so as long as your damage is above 60 the counter will continuously count up to 100, and then reset to 2. If your damage is below 60 the number
+		//becomes 0. So it only gets a value of +1 for one frame which prevents the sfx from playing repeatedly every single frame as long as you've above 60%
+                AttackModule::set_power_up(module_accessor, 1.3); //Multiply attack power by 1.3
                 if motion_kind == hash40("special_s_start") || motion_kind == hash40("special_air_s_start") {
-                    MotionModule::set_rate(module_accessor, 20.0)
+                    MotionModule::set_rate(module_accessor, 20.0) //If in powered up mode, side special has instant startup
                 }
                 if motion_kind == hash40("special_n_end") {
-                    MotionModule::set_rate(module_accessor, 11.0)
+                    MotionModule::set_rate(module_accessor, 11.0) //If in powered up mode, neutral special has very little endlag
                 }
-                if _SOUND_COUNTER[entry_id] < 2 {
-                    let lua_state = fighter.lua_state_agent;
+                if _SOUND_COUNTER[entry_id] < 2 { //If sound counter is less than 2
+                    let lua_state = fighter.lua_state_agent; //This is how you make an acmd block inside of the once_per_fighter_frame
                     acmd!(lua_state, {
                         // acmd code goes here
-                        PLAY_SE(0x19346fcd4a as u64)
-                        PLAY_STATUS(0x16960a27fd as u64)
+                        PLAY_SE(0x19346fcd4a as u64) //Play sound effect (that whoosh noise)
+                        PLAY_STATUS(0x16960a27fd as u64) //Play voice sound effect ("come")
                     });
                 }
-                if _SOUND_COUNTER[entry_id] >= 100 {
-                    _SOUND_COUNTER[entry_id] = 2;
+                if _SOUND_COUNTER[entry_id] >= 100 { //If sound counter reaches 100
+                    _SOUND_COUNTER[entry_id] = 2; //Reset to 2. Prevents the value from going to 0 unless you're below 60% so the SFX doesn't repeat
                 }
             }
 
             if DamageModule::damage(module_accessor, 0) < 60.0 {
-                _SOUND_COUNTER[entry_id] = 0;
+                _SOUND_COUNTER[entry_id] = 0; //Sets the sound counter to 0
             }
 
-            if _GFX_COUNTER[entry_id] >= 6 {
+            if _GFX_COUNTER[entry_id] >= 6 { //If the GFX counter reaches  6, draws the GFX. I should have put this part inside of the if damage > 60, but doesn't matter because
+		    			     //the counter only counts if you're above 60 anyway
                 EffectModule::req_follow(module_accessor, smash::phx::Hash40::new("sys_hit_purple"), smash::phx::Hash40::new("haver"), &gfxcoords, &gfxcoords, 0.25, true, 0, 0, 0, 0, 0, true, true);
                 EffectModule::req_follow(module_accessor, smash::phx::Hash40::new("sys_hit_purple"), smash::phx::Hash40::new("havel"), &gfxcoords, &gfxcoords, 0.25, true, 0, 0, 0, 0, 0, true, true);
                 _GFX_COUNTER[entry_id] = 0;
@@ -1987,7 +1994,7 @@ pub fn install() {
         meta_knight_effect_special_lw_f,
         //meta_knight_effect_special_air_lw,
         //meta_knight_effect_special_air_lw_b,
-        //meta_knight_effect_special_air_lw_f,
+        //meta_knight_effect_special_air_lw_f, the effects were not working properly so ditched for now
         meta_knight_effect_special_lw_start,
         meta_knight_effect_special_air_lw_start
     );
